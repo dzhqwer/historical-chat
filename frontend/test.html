@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>历史人物对话系统 - 测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #f093fb, #f5576c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status {
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 10px;
+            font-size: 0.9em;
+        }
+
+        .status.ok {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid #10b981;
+            color: #10b981;
+        }
+
+        .status.error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        .test-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .test-section h2 {
+            margin-bottom: 15px;
+            color: #f093fb;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            color: white;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .result {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .info-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h3 {
+            color: #60a5fa;
+            margin-bottom: 10px;
+        }
+
+        .info-box p {
+            margin: 5px 0;
+            color: #94a3b8;
+        }
+
+        .info-box code {
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #f093fb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎭 历史人物对话系统 - 测试页面</h1>
+            <div>
+                <span id="statusBackend" class="status">检查中...</span>
+                <span id="statusFrontend" class="status">检查中...</span>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h3>📊 服务状态</h3>
+            <p>后端 API: <code>http://localhost:8888</code></p>
+            <p>前端界面: <code>http://localhost:9999</code></p>
+            <p>API 文档: <a href="http://localhost:8888/docs" target="_blank" style="color: #f093fb;">http://localhost:8888/docs</a></p>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 API 测试</h2>
+            <div class="button-group">
+                <button onclick="testHealth()">健康检查</button>
+                <button onclick="testFigures()">获取历史人物</button>
+                <button onclick="testChat()">测试对话</button>
+                <button onclick="testVoice()">测试语音合成</button>
+                <button onclick="test3D()">测试 3D 模型</button>
+            </div>
+            <div id="apiResult" class="result">点击上方按钮进行测试...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>💬 快速对话测试</h2>
+            <div style="margin-bottom: 15px;">
+                <label>选择人物：</label>
+                <select id="figureSelect" style="padding: 8px; border-radius: 6px; border: none; margin-left: 10px;">
+                    <option value="">加载中...</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="testMessage" placeholder="输入消息..." style="flex: 1; padding: 10px; border-radius: 6px; border: none; background: rgba(255,255,255,0.1); color: white;">
+                <button onclick="sendTestMessage()">发送</button>
+            </div>
+            <div id="chatResult" class="result" style="margin-top: 15px;">对话结果将显示在这里...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🚀 完整界面</h2>
+            <p style="margin-bottom: 15px; color: #94a3b8;">访问完整的前端界面：</p>
+            <a href="http://localhost:9999/index.html" target="_blank" style="display: inline-block; padding: 12px 24px; background: linear-gradient(90deg, #f093fb, #f5576c); color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">打开完整界面 →</a>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8888';
+
+        // 检查服务状态
+        async function checkStatus() {
+            try {
+                const backend = await fetch(`${API_BASE}/health`);
+                document.getElementById('statusBackend').textContent = '后端: ✅ 正常';
+                document.getElementById('statusBackend').className = 'status ok';
+            } catch (e) {
+                document.getElementById('statusBackend').textContent = '后端: ❌ 离线';
+                document.getElementById('statusBackend').className = 'status error';
+            }
+
+            try {
+                const frontend = await fetch('http://localhost:9999/index.html');
+                document.getElementById('statusFrontend').textContent = '前端: ✅ 正常';
+                document.getElementById('statusFrontend').className = 'status ok';
+            } catch (e) {
+                document.getElementById('statusFrontend').textContent = '前端: ❌ 离线';
+                document.getElementById('statusFrontend').className = 'status error';
+            }
+        }
+
+        // 健康检查
+        async function testHealth() {
+            showResult('正在检查...');
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                const data = await res.json();
+                showResult('✅ 健康检查通过\n\n' + JSON.stringify(data, null, 2));
+            } catch (e) {
+                showResult('❌ 错误: ' + e.message);
+            }
+        }
+
+        // 获取历史人物
+        async function testFigures() {
+            showResult('正在获取历史人物...');
+            try {
+                const res = await fetch(`${API_BASE}/api/figures/`);
+                const data = await res.json();
+                showResult('✅ 获取成功\n\n' + JSON.stringify(data, null, 2));
+
+                // 更新下拉列表
+                const select = document.getElementById('figureSelect');
+                select.innerHTML = '<option value="">选择人物...</option>';
+                data.figures.forEach(fig => {
+                    const opt = document.createElement('option');
+                    opt.value = fig.name;
+                    opt.textContent = `${fig.name} - ${fig.title}`;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                showResult('❌ 错误: ' + e.message);
+            }
+        }
+
+        // 测试对话
+        async function testChat() {
+            showResult('正在发送消息...');
+            try {
+                const res = await fetch(`${API_BASE}/api/chat/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: '你好，请介绍一下自己',
+                        figure_name: '李白',
+                        session_id: 'test-session'
+                    })
+                });
+                const data = await res.json();
+                showResult('✅ 对话成功\n\n' + JSON.stringify(data, null, 2));
+            } catch (e) {
+                showResult('❌ 错误: ' + e.message);
+            }
+        }
+
+        // 测试语音合成
+        async function testVoice() {
+            showResult('正在生成语音...');
+            try {
+                const res = await fetch(`${API_BASE}/api/voice/tts/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: '你好，我是李白',
+                        figure_name: '李白'
+                    })
+                });
+                const data = await res.json();
+                showResult('✅ 语音生成成功\n\n' + JSON.stringify(data, null, 2));
+
+                // 播放音频
+                if (data.audio_url) {
+                    const audio = new Audio(data.audio_url);
+                    audio.play();
+                    showResult('✅ 语音生成并播放成功\n\n' + JSON.stringify(data, null, 2));
+                }
+            } catch (e) {
+                showResult('❌ 错误: ' + e.message);
+            }
+        }
+
+        // 测试 3D 模型
+        async function test3D() {
+            showResult('正在生成 3D 模型...');
+            try {
+                const res = await fetch(`${API_BASE}/api/3d/models/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        figure_name: '李白'
+                    })
+                });
+                const data = await res.json();
+                showResult('✅ 3D 模型配置获取成功\n\n' + JSON.stringify(data, null, 2));
+            } catch (e) {
+                showResult('❌ 错误: ' + e.message);
+            }
+        }
+
+        // 发送测试消息
+        async function sendTestMessage() {
+            const figure = document.getElementById('figureSelect').value;
+            const message = document.getElementById('testMessage').value;
+
+            if (!figure) {
+                alert('请先选择历史人物');
+                return;
+            }
+
+            if (!message) {
+                alert('请输入消息');
+                return;
+            }
+
+            showResult(`正在发送消息给 ${figure}...`);
+
+            try {
+                const res = await fetch(`${API_BASE}/api/chat/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        figure_name: figure,
+                        session_id: 'test-session'
+                    })
+                });
+                const data = await res.json();
+                document.getElementById('chatResult').textContent = `${figure}:\n${data.response}`;
+            } catch (e) {
+                document.getElementById('chatResult').textContent = '❌ 错误: ' + e.message;
+            }
+        }
+
+        function showResult(text) {
+            document.getElementById('apiResult').textContent = text;
+        }
+
+        // 页面加载时检查状态
+        window.onload = function() {
+            checkStatus();
+            testFigures();
+        };
+    </script>
+</body>
+</html>

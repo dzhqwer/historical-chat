@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>历史人物沉浸式对话</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Socket.io -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <!-- Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        #root {
+            width: 100vw;
+            height: 100vh;
+        }
+        .chat-message {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .voice-active {
+            animation: voicePulse 1s ease-in-out infinite;
+        }
+        @keyframes voicePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react,env">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // ==================== API 服务 ====================
+        const API_BASE = 'http://localhost:8888';
+
+        const api = {
+            // 获取历史人物列表
+            getFigures: async () => {
+                const response = await axios.get(`${API_BASE}/api/figures/`);
+                return response.data;
+            },
+
+            // 发送消息
+            sendMessage: async (message, figureName, sessionId) => {
+                const response = await axios.post(`${API_BASE}/api/chat/`, {
+                    message,
+                    figure_name: figureName,
+                    session_id: sessionId
+                });
+                return response.data;
+            },
+
+            // 文字转语音
+            textToSpeech: async (text, figureName) => {
+                const response = await axios.post(`${API_BASE}/api/voice/tts/`, {
+                    text,
+                    figure_name: figureName
+                });
+                return response.data;
+            },
+
+            // 获取口型同步数据
+            getLipSync: async (text, figureName) => {
+                const response = await axios.post(`${API_BASE}/api/3d/lip-sync/`, {
+                    text,
+                    figure_name: figureName
+                });
+                return response.data;
+            },
+
+            // 获取 3D 模型配置
+            get3DModels: async () => {
+                const response = await axios.get(`${API_BASE}/api/3d/models/`);
+                return response.data;
+            }
+        };
+
+        // ==================== 3D 模型组件 ====================
+        function Avatar3D({ imageUrl, figureName, isSpeaking }) {
+            const containerRef = useRef(null);
+            const sceneRef = useRef(null);
+            const cameraRef = useRef(null);
+            const rendererRef = useRef(null);
+            const meshRef = useRef(null);
+
+            useEffect(() => {
+                if (!containerRef.current) return;
+
+                // 创建场景
+                const scene = new THREE.Scene();
+                sceneRef.current = scene;
+
+                // 创建相机
+                const camera = new THREE.PerspectiveCamera(
+                    75,
+                    containerRef.current.clientWidth / containerRef.current.clientHeight,
+                    0.1,
+                    1000
+                );
+                camera.position.z = 3;
+                cameraRef.current = camera;
+
+                // 创建渲染器
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+                renderer.setClearColor(0x000000, 0);
+                containerRef.current.appendChild(renderer.domElement);
+                rendererRef.current = renderer;
+
+                // 加载纹理
+                let texture;
+                if (imageUrl) {
+                    const textureLoader = new THREE.TextureLoader();
+                    textureLoader.crossOrigin = 'anonymous';
+                    texture = textureLoader.load(imageUrl);
+                }
+
+                // 创建平面几何体
+                const geometry = new THREE.PlaneGeometry(3, 4);
+                const material = new THREE.MeshBasicMaterial({
+                    map: texture || null,
+                    transparent: true,
+                    opacity: imageUrl ? 1 : 0.3,
+                    color: imageUrl ? 0xffffff : 0x4a90d9
+                });
+
+                const mesh = new THREE.Mesh(geometry, material);
+                scene.add(mesh);
+                meshRef.current = mesh;
+
+                // 添加光晕效果
+                const glowGeometry = new THREE.PlaneGeometry(3.2, 4.2);
+                const glowMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x4a90d9,
+                    transparent: true,
+                    opacity: 0.1
+                });
+                const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                glow.position.z = -0.1;
+                scene.add(glow);
+
+                // 动画循环
+                const animate = () => {
+                    requestAnimationFrame(animate);
+
+                    // 轻微浮动效果
+                    mesh.position.y = Math.sin(Date.now() * 0.001) * 0.05;
+
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                // 清理函数
+                return () => {
+                    if (rendererRef.current && containerRef.current) {
+                        containerRef.current.removeChild(rendererRef.current.domElement);
+                    }
+                    if (rendererRef.current) {
+                        rendererRef.current.dispose();
+                    }
+                };
+            }, [imageUrl]);
+
+            // 说话动画效果
+            useEffect(() => {
+                if (meshRef.current) {
+                    const scale = isSpeaking ? 1.02 : 1;
+                    meshRef.current.scale.set(scale, scale, scale);
+                }
+            }, [isSpeaking]);
+
+            return (
+                <div
+                    ref={containerRef}
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{
+                        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
+                    }}
+                >
+                    {!imageUrl && (
+                        <div className="text-center text-white/50">
+                            <div className="text-6xl mb-4">🎭</div>
+                            <div className="text-lg">选择历史人物开始对话</div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ==================== 消息气泡组件 ====================
+        function MessageBubble({ message, isUser, figureName }) {
+            const [audioUrl, setAudioUrl] = useState(null);
+            const [isPlaying, setIsPlaying] = useState(false);
+            const audioRef = useRef(null);
+
+            const playAudio = async () => {
+                if (audioUrl && audioRef.current) {
+                    if (isPlaying) {
+                        audioRef.current.pause();
+                        setIsPlaying(false);
+                    } else {
+                        audioRef.current.play();
+                        setIsPlaying(true);
+                    }
+                } else {
+                    try {
+                        const data = await api.textToSpeech(message, figureName);
+                        setAudioUrl(data.audio_url);
+                        setIsPlaying(true);
+                    } catch (error) {
+                        console.error('播放语音失败:', error);
+                    }
+                }
+            };
+
+            return (
+                <div className={`chat-message flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+                    <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[70%]`}>
+                        {!isUser && (
+                            <div className="text-sm text-blue-400 mb-1 ml-2">{figureName || 'AI助手'}</div>
+                        )}
+                        <div className={`px-4 py-3 rounded-2xl ${
+                            isUser
+                                ? 'bg-blue-500 text-white rounded-br-md'
+                                : 'bg-white/10 backdrop-blur-sm text-white rounded-bl-md'
+                        }`}>
+                            <div className="whitespace-pre-wrap">{message}</div>
+                        </div>
+                        {!isUser && (
+                            <button
+                                onClick={playAudio}
+                                className={`mt-2 px-3 py-1 rounded-full text-sm ${
+                                    isPlaying
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : 'bg-white/10 text-white/70 hover:bg-white/20'
+                                } transition-colors`}
+                            >
+                                {isPlaying ? '🔊 停止播放' : '🎵 播放语音'}
+                            </button>
+                        )}
+                        {audioUrl && (
+                            <audio
+                                ref={audioRef}
+                                src={audioUrl}
+                                onEnded={() => setIsPlaying(false)}
+                            />
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // ==================== 角色选择器组件 ====================
+        function FigureSelector({ figures, selectedFigure, onSelect, onClose }) {
+            const [search, setSearch] = useState('');
+
+            const filteredFigures = figures.filter(f =>
+                f.name.toLowerCase().includes(search.toLowerCase())
+            );
+
+            return (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-white">选择历史人物</h2>
+                            <button onClick={onClose} className="text-white/70 hover:text-white text-2xl">
+                                ×
+                            </button>
+                        </div>
+
+                        <input
+                            type="text"
+                            placeholder="搜索历史人物..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full px-4 py-3 bg-white/10 text-white rounded-xl mb-4 border border-white/20 focus:outline-none focus:border-blue-500"
+                        />
+
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto max-h-[50vh]">
+                            {filteredFigures.map((figure) => (
+                                <button
+                                    key={figure.name}
+                                    onClick={() => onSelect(figure.name)}
+                                    className={`p-4 rounded-xl transition-all ${
+                                        selectedFigure === figure.name
+                                            ? 'bg-blue-500 ring-2 ring-blue-400'
+                                            : 'bg-white/10 hover:bg-white/20'
+                                    }`}
+                                >
+                                    <div className="text-xl mb-2">🎭</div>
+                                    <div className="text-white font-medium text-center">{figure.name}</div>
+                                    <div className="text-white/60 text-xs text-center mt-1">{figure.title}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==================== 主应用组件 ====================
+        function App() {
+            const [messages, setMessages] = useState([]);
+            const [inputText, setInputText] = useState('');
+            const [selectedFigure, setSelectedFigure] = useState('');
+            const [figures, setFigures] = useState([]);
+            const [isSpeaking, setIsSpeaking] = useState(false);
+            const [showFigureSelector, setShowFigureSelector] = useState(false);
+            const [isLoading, setIsLoading] = useState(false);
+            const [models, setModels] = useState({});
+            const [sessionId, setSessionId] = useState('');
+
+            const messagesEndRef = useRef(null);
+
+            // 初始化
+            useEffect(() => {
+                loadFigures();
+                loadModels();
+                setSessionId(`session_${Date.now()}`);
+            }, []);
+
+            // 滚动到底部
+            useEffect(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, [messages]);
+
+            const loadFigures = async () => {
+                try {
+                    const data = await api.getFigures();
+                    setFigures(data.figures || []);
+                } catch (error) {
+                    console.error('加载历史人物列表失败:', error);
+                }
+            };
+
+            const loadModels = async () => {
+                try {
+                    const data = await api.get3DModels();
+                    setModels(data.models || {});
+                } catch (error) {
+                    console.error('加载 3D 模型配置失败:', error);
+                }
+            };
+
+            const handleSendMessage = async () => {
+                if (!inputText.trim()) return;
+
+                const userMessage = inputText.trim();
+                setInputText('');
+                setMessages(prev => [...prev, { content: userMessage, isUser: true }]);
+                setIsLoading(true);
+
+                try {
+                    const response = await api.sendMessage(userMessage, selectedFigure, sessionId);
+                    setMessages(prev => [
+                        ...prev,
+                        {
+                            content: response.message,
+                            isUser: false,
+                            figureName: selectedFigure
+                        }
+                    ]);
+
+                    // 自动播放 AI 回复的语音
+                    const ttsData = await api.textToSpeech(response.message, selectedFigure);
+                    const audio = new Audio(ttsData.audio_url);
+                    setIsSpeaking(true);
+                    audio.play();
+                    audio.onended = () => setIsSpeaking(false);
+
+                } catch (error) {
+                    console.error('发送消息失败:', error);
+                    setMessages(prev => [
+                        ...prev,
+                        { content: '抱歉，我遇到了一些问题，请稍后再试。', isUser: false }
+                    ]);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleFigureSelect = (figureName) => {
+                setSelectedFigure(figureName);
+                setShowFigureSelector(false);
+                setMessages(prev => [...prev, {
+                    content: `已选择与 ${figureName} 对话`,
+                    isUser: false,
+                    isSystem: true
+                }]);
+            };
+
+            const getCurrentImageUrl = () => {
+                if (!selectedFigure) return null;
+                return models[selectedFigure]?.image_url || null;
+            };
+
+            return (
+                <div className="flex h-screen">
+                    {/* 左侧：3D 模型展示区 */}
+                    <div className="w-1/2 relative">
+                        <Avatar3D
+                            imageUrl={getCurrentImageUrl()}
+                            figureName={selectedFigure}
+                            isSpeaking={isSpeaking}
+                        />
+
+                        {/* 顶部信息栏 */}
+                        <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/50 to-transparent">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h1 className="text-3xl font-bold text-white">
+                                        {selectedFigure || '历史人物对话'}
+                                    </h1>
+                                    {selectedFigure && (
+                                        <p className="text-white/70 mt-1">
+                                            {figures.find(f => f.name === selectedFigure)?.title || ''}
+                                        </p>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => setShowFigureSelector(true)}
+                                    className="px-4 py-2 bg-white/10 backdrop-blur-sm text-white rounded-xl hover:bg-white/20 transition-colors"
+                                >
+                                    🔄 切换人物
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 底部状态栏 */}
+                        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/50 to-transparent">
+                            {isSpeaking && (
+                                <div className="flex items-center justify-center space-x-2 text-white">
+                                    <span className="pulse">🔊</span>
+                                    <span>正在说话...</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 右侧：对话区 */}
+                    <div className="w-1/2 flex flex-col bg-gray-900">
+                        {/* 消息列表 */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {messages.length === 0 ? (
+                                <div className="h-full flex items-center justify-center text-white/50">
+                                    <div className="text-center">
+                                        <div className="text-6xl mb-4">💬</div>
+                                        <div className="text-xl">选择人物并开始对话</div>
+                                        <div className="text-sm mt-2">支持语音输入和播放</div>
+                                    </div>
+                                </div>
+                            ) : (
+                                messages.map((msg, index) => (
+                                    <div key={index}>
+                                        <MessageBubble
+                                            message={msg.content}
+                                            isUser={msg.isUser}
+                                            figureName={msg.figureName}
+                                        />
+                                    </div>
+                                ))
+                            )}
+                            {isLoading && (
+                                <div className="text-white/50 text-center py-4">
+                                    <span className="pulse">●</span> 对话中...
+                                </div>
+                            )}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        {/* 输入区 */}
+                        <div className="p-6 bg-gray-800/50 backdrop-blur-sm border-t border-gray-700">
+                            <div className="flex space-x-3">
+                                <input
+                                    type="text"
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                                    placeholder="输入消息..."
+                                    disabled={isLoading}
+                                    className="flex-1 px-4 py-3 bg-white/10 text-white rounded-xl border border-white/20 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                                />
+                                <button
+                                    onClick={handleSendMessage}
+                                    disabled={isLoading || !inputText.trim()}
+                                    className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    发送
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 角色选择器 */}
+                    {showFigureSelector && (
+                        <FigureSelector
+                            figures={figures}
+                            selectedFigure={selectedFigure}
+                            onSelect={handleFigureSelect}
+                            onClose={() => setShowFigureSelector(false)}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        // 渲染应用
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

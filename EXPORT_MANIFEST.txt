@@ -1,0 +1,32 @@
+=======================================
+历史人物对话系统 - 文件清单
+=======================================
+
+请将以下文件复制到你的本地电脑：
+
+【配置文件】
+1. config/agent_llm_config.json
+2. assets/historical_figures.json
+
+【后端核心】
+1. src/app.py
+2. src/agents/agent.py
+3. src/tools/historical_figure_tool.py
+4. src/storage/memory/memory_saver.py
+
+【API 接口】
+1. src/api/__init__.py
+2. src/api/routes/chat.py
+3. src/api/routes/websocket.py
+4. src/api/routes/voice.py
+5. src/api/routes/model3d.py
+
+【前端界面】
+1. frontend/index.html
+
+【依赖文件】
+1. requirements.txt
+
+【部署文档】
+1. LOCAL_SETUP.md - 本地部署指南
+2. README.md - 项目说明

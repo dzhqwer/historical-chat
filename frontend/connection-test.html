@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>连接测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .test-box {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+        button {
+            padding: 10px 20px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 连接测试工具</h1>
+
+    <div class="test-box">
+        <h2>服务器信息</h2>
+        <p><strong>服务器 IP:</strong> 9.129.94.21</p>
+        <p><strong>后端端口:</strong> 8888</p>
+        <p><strong>前端端口:</strong> 9999</p>
+    </div>
+
+    <div class="test-box">
+        <h2>测试连接</h2>
+        <button onclick="testBackend()">测试后端 (8888)</button>
+        <button onclick="testFrontend()">测试前端 (9999)</button>
+        <button onclick="testAll()">全部测试</button>
+        <button onclick="testWithIP()">使用 IP 测试</button>
+    </div>
+
+    <div id="result">点击按钮开始测试...</div>
+
+    <div class="test-box">
+        <h2>可能的问题</h2>
+        <ul>
+            <li><strong>云服务器安全组未开放端口</strong> - 需要在云服务商控制台添加入站规则</li>
+            <li><strong>服务器防火墙阻止</strong> - 需要开放 8888 和 9999 端口</li>
+            <li><strong>网络问题</strong> - 检查本地网络是否正常</li>
+        </ul>
+    </div>
+
+    <div class="test-box">
+        <h2>直接访问链接</h2>
+        <p>如果测试通过，点击下面链接：</p>
+        <a href="http://9.129.94.21:9999/test.html" target="_blank" style="color: #3b82f6;">打开测试页面</a><br>
+        <a href="http://9.129.94.21:9999/index.html" target="_blank" style="color: #3b82f6;">打开完整界面</a>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'http://9.129.94.21:8888';
+        const FRONTEND_URL = 'http://9.129.94.21:9999';
+
+        async function testBackend() {
+            showResult('正在测试后端连接...');
+            try {
+                const start = Date.now();
+                const response = await fetch(`${BACKEND_URL}/health`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                const elapsed = Date.now() - start;
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showResult(`✅ 后端连接成功！\n\n响应时间: ${elapsed}ms\n响应数据: ${JSON.stringify(data, null, 2)}\n\n后端服务正常运行！`);
+                } else {
+                    showResult(`❌ 后端连接失败\n\n状态码: ${response.status}\n状态文本: ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult(`❌ 无法连接到后端\n\n错误信息: ${error.message}\n\n可能原因:\n1. 端口 8888 未开放\n2. 防火墙阻止\n3. 网络问题`);
+            }
+        }
+
+        async function testFrontend() {
+            showResult('正在测试前端连接...');
+            try {
+                const start = Date.now();
+                const response = await fetch(`${FRONTEND_URL}/test.html`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                const elapsed = Date.now() - start;
+
+                if (response.ok) {
+                    showResult(`✅ 前端连接成功！\n\n响应时间: ${elapsed}ms\n内容长度: ${response.headers.get('content-length')} 字节\n\n前端服务正常运行！`);
+                } else {
+                    showResult(`❌ 前端连接失败\n\n状态码: ${response.status}\n状态文本: ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult(`❌ 无法连接到前端\n\n错误信息: ${error.message}\n\n可能原因:\n1. 端口 9999 未开放\n2. 防火墙阻止\n3. 网络问题`);
+            }
+        }
+
+        async function testAll() {
+            showResult('正在测试所有连接...\n');
+            let results = [];
+
+            // 测试后端
+            try {
+                const response = await fetch(`${BACKEND_URL}/health`);
+                results.push(response.ok ? '✅ 后端 (8888): 正常' : '❌ 后端 (8888): 失败');
+            } catch (e) {
+                results.push('❌ 后端 (8888): 无法连接');
+            }
+
+            // 测试前端
+            try {
+                const response = await fetch(`${FRONTEND_URL}/test.html`);
+                results.push(response.ok ? '✅ 前端 (9999): 正常' : '❌ 前端 (9999): 失败');
+            } catch (e) {
+                results.push('❌ 前端 (9999): 无法连接');
+            }
+
+            showResult(results.join('\n\n'));
+        }
+
+        async function testWithIP() {
+            showResult('正在使用 IP 地址测试...\n\n');
+            await testAll();
+        }
+
+        function showResult(text) {
+            document.getElementById('result').textContent = text;
+        }
+
+        // 页面加载时自动测试
+        window.onload = function() {
+            console.log('页面加载完成，可以开始测试连接');
+        };
+    </script>
+</body>
+</html>

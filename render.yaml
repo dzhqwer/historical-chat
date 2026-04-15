@@ -1,0 +1,19 @@
+# Render.com 部署配置
+
+# 后端服务（免费版）
+services:
+  - type: web
+    name: historical-chat-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.app:app --host 0.0.0.0 --port $PORT
+    region: oregon
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
+      - key: PORT
+        value: 8000
+
+# 前端服务（静态托管，使用 GitHub Pages 免费）
+# 提示：前端将部署到 GitHub Pages，无需 Render
